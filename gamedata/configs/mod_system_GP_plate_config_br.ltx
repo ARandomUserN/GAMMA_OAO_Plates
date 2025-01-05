@@ -1,0 +1,61 @@
+; approximate stamina recovery reduction when plate equipped
+; stamina recovery test, red overweight, sprint until it cuts off, then recover to full
+; clean:        0           ~8s sprint / ~16s recovery
+; plate_up:     -0.004      ~6s sprint / ~24s recovery    display at -0.004 : -120%, real recovery ~ -50%
+; power_restore_speed is only for the UI tooltip, real values comes from plate_config_br.ltx
+    ; plate_up calc
+    ; 0.004 = 1.2
+    ; x     = 0.5
+    ; x = 0.004*0.5/1.2
+    ; x = 0.001666(6) 
+    ; the rest is in proportion to that
+
+; af_bone_value is only for display so is size in this file, real values come from plate_config_br.ltx
+
+![af_kevlar]
+    af_bone_value                                      = 0.01
+    script_binding                                     = arti_cond_binder.bind
+    use1_functor                                       = realistic_plates.precond_install
+    use1_action_functor                                = realistic_plates.install_plate   
+    belt                                               = false
+	size 											   = 1
+    artefact_activation_seq		                       = af_activation_bold
+    inv_weight                                         = 2.268
+    hit_absorbation_sect                               = af_kevlar_absorbation
+    power_restore_speed		                           = -0.000417 ; 0.001
+![af_kevlar_up] 
+    af_bone_value                                      = 0.03  
+    script_binding                                     = arti_cond_binder.bind
+    use1_functor                                       = realistic_plates.precond_install
+    use1_action_functor                                = realistic_plates.install_plate   
+    belt                                               = false
+	size 											   = 1
+    artefact_activation_seq		                       = af_activation_bold
+    hit_absorbation_sect                               = af_kevlar_up_absorbation
+    inv_weight                                         = 2.722
+    power_restore_speed		                           = -0.000625 ;0.0015
+![af_plates]
+    af_bone_value                                      = 0.04   
+    script_binding                                     = arti_cond_binder.bind
+    use1_functor                                       = realistic_plates.precond_install
+    use1_action_functor                                = realistic_plates.install_plate 
+    belt                                               = false 
+	size 											   = 2
+    artefact_activation_seq		                       = af_activation_bold
+    hit_absorbation_sect                               = af_plates_absorbation
+    inv_weight                                         = 4.536
+    power_restore_speed		                           = -0.00125 ; 0.003
+![af_plates_up]
+    af_bone_value                                      = 0.06 
+    script_binding                                     = arti_cond_binder.bind
+    use1_functor                                       = realistic_plates.precond_install
+    use1_action_functor                                = realistic_plates.install_plate 
+    belt                                               = false    
+	size 											   = 2
+    artefact_activation_seq		                       = af_activation_bold
+    hit_absorbation_sect                               = af_plates_up_absorbation
+    inv_weight                                         = 8.165
+    power_restore_speed		                           = -0.00167 ; 0.004 or ~50% 
+
+
+

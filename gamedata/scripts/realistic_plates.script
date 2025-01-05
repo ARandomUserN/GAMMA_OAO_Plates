@@ -1,0 +1,276 @@
+
+--[[
+=======================================================================================
+	Ballistic Armor Inserts
+	G.A.M.M.A Compatibility edited by Oleg152
+	
+	Credits: Arti and Vintar for original codebase, Grok for methods to get ammo type
+	
+	Version Log:
+	1.0.0 - Oleg152
+=======================================================================================
+--]]
+
+---------------------------------------------------------------------------------------
+--                                   VARIABLES
+---------------------------------------------------------------------------------------
+ini_conf_br = ini_file("items\\settings\\plate_config_br.ltx")
+local ini_armor = ini_file("items\\settings\\plate_armors.ltx")
+
+gc = game.translate_string
+-- print_dbg = arti_slot_control.print_dbg
+plates = {}
+
+---------------------------------------------------------------------------------------
+--                                   SCRIPTS
+---------------------------------------------------------------------------------------
+
+
+--==================================== Requirements =====================================
+--
+-- user must use Arti Attachments Addon
+if not arti_slot_control then 
+	return 
+end
+--
+--==================================== Callbacks =======================================
+
+
+function on_item_drag_dropped(from, to, slot_from, slot_to)
+	if not (slot_from == EDDListType.iActorBag and (slot_to == EDDListType.iActorBag or slot_to == EDDListType.iActorSlot)) then
+        return
+    end
+	
+	if to and IsOutfit(to) and from and ini_conf_br:section_exist(from:section()) and precond_install(from, to) then
+		remove_plate(to)
+		install_plate(from, to)
+	end
+end
+
+function precond_remove(outfit)
+	--print_dbg("PRECOND REMOVE")
+	local id = outfit and outfit:id() or 0
+	if plates[id] then
+		if IsOutfit(outfit) then return "st_remove_plate"
+		else plates[id] = nil end
+	end
+end
+
+function remove_plate(outfit)
+	--print_dbg("REMOVE PLATE")
+	local sec = outfit and outfit:section() or ""
+	if not ini_armor:section_exist(sec) then
+		printf("Section %s should not have plate", sec)
+		plates[outfit:id()] = nil
+	end
+	if not plates[outfit:id()] then return end
+	local plate = plates[outfit:id()]
+	alife_create_item(plate.section, db.actor, {cond = plate.cond})
+	plates[outfit:id()] = nil
+	adjust_weight(outfit)
+end
+
+function precond_install(plate, outfit)
+	local outfit = outfit or db.actor:item_in_slot(7)
+	if not outfit then return end
+	local o_sec = outfit:section()
+	local size = ini_armor:r_float_ex(o_sec, "size")
+	if not size then return end
+	local p_size = ini_conf_br:r_float_ex(plate:section(), "size") or 3
+	if p_size <= size then return "st_insert_plate"
+	else
+		local msg = string.format("Plate %s (size %s) can't fit in outfit %s (size %s)", plate:section(), p_size, o_sec, size )
+		news_manager.send_tip(db.actor, msg, nil, "swiss_knife", 6000)
+	end
+end
+
+function install_plate(plate, outfit)
+	if not outfit then outfit = db.actor:item_in_slot(7) end
+	if not outfit or not plate then return end
+	remove_plate(outfit)
+	plates[outfit:id()] = {
+		section = plate:section(),
+		cond = plate:condition()
+	}
+	alife_release(plate)
+	adjust_weight(outfit)
+	-- some animations, perhaps?
+end
+
+function check_speed()
+	local speed_mod = 1
+	local outfit = db.actor:item_in_slot(7)
+	if outfit and plates[outfit:id()] then 
+		local plate = plates[outfit:id()]
+		speed_mod = ini_conf_br:r_float_ex(plate.section, "speed") or 1
+	end
+	if speed_mod then
+		speed.add_speed("plate", speed_mod, false, true)
+	else
+		speed.remove_speed("plate")
+	end
+
+end
+
+function check_power()
+	local power_loss = 0
+	local outfit = db.actor:item_in_slot(7)
+	if outfit and plates[outfit:id()] then 
+		local plate = plates[outfit:id()]
+		power_loss = ini_conf_br:r_float_ex(plate.section, "power_restore_speed") or 0
+		printf(power_loss)
+	end
+	if power_loss ~= 0 then
+		printf("ADD")
+		stamina.add_power_loss("plate",power_loss)
+	else
+		printf("REM")
+		stamina.remove_power_loss("plate")
+	end
+end
+
+
+function adjust_weight(obj)
+	if not IsOutfit(obj) then return end
+
+	local original_weight = obj:weight()
+    local base_weight = SYS_GetParam(2, obj:section(), "inv_weight")
+    local upgrades = utils_item.get_upgrades_installed(obj)
+    local add_inv_weight = 0
+    for _, upgrade in pairs(upgrades) do
+        local section = ini_sys:r_string_ex(upgrade, "section")
+        local weight_adj = ini_sys:r_string_ex(section,"inv_weight")
+        if weight_adj then
+            local op = string.sub(weight_adj, 1, 1)
+            local val = tonumber(string.sub(weight_adj, 2))
+
+            add_inv_weight = op == "+" and add_inv_weight + val or add_inv_weight - val
+        end
+    end
+
+    base_weight = base_weight + add_inv_weight
+
+    local plate = plates[obj:id()]
+    if plate then
+        base_weight = base_weight + SYS_GetParam(2, plate.section, "inv_weight")
+    end
+
+	obj:set_weight(base_weight)
+
+	-- Added speed calc for plates on change of plate in armor
+	check_speed()
+	-- added calc for stamina consumption change
+	--stamina.update_stamina_consumption()
+	check_power()
+end
+
+GetCond = utils_xml.get_name_cond
+function utils_xml.get_name_cond(cond, is_wep, section)
+	if ini_conf_br:section_exist(section) then
+		return (tostring(cond) .. "%")
+	else return GetCond(cond, is_wep, section) end
+end
+
+DOutfit =item_parts.disassembly_outfit 
+function item_parts.disassembly_outfit(outfit, tool)
+	remove_plate(outfit)
+	DOutfit(outfit, tool)
+end
+
+local clr_r  = utils_xml.get_color("d_red")
+local clr_g  = utils_xml.get_color("d_green")
+local clr_y  = utils_xml.get_color("yellow")
+
+local clr_2  = utils_xml.get_color("ui_gray_1")
+original_build_desc_header = ui_item.build_desc_header
+function ui_item.build_desc_header(obj, sec, str)
+	local _str = ""
+	local _str2 = original_build_desc_header(obj, sec, str)
+	
+	if obj and IsOutfit(obj) then
+        local plate = plates[obj:id()]
+		if plate then
+			local cond = math.floor(plate.cond * 100)
+			-- display default info
+			_str = _str .. "  " .. gc("st_dot") .. "  " .. clr_2 ..  gc("st_plate_in") .. " ".. utils_xml.get_color_con(cond) .. ui_item.get_sec_name(plate.section) .. " (" .. cond .. "%)\\n"
+		else
+			-- display plate info
+			local size = ini_armor:r_float_ex(obj:section(), "size") or 0
+			_str = _str .. "  " .. gc("st_dot") .. "  " .. gc("st_plate_cap_"..size) .. "\\n"
+		end
+    end
+	_str = _str2 .. _str
+
+	return _str
+end
+
+function slot_move(obj)
+    on_move(nil, obj)
+end
+
+function on_move(_, item)
+	if IsOutfit(item) then adjust_weight(item) end
+end
+
+function save_state(mdata)
+	mdata.plates = plates
+end
+
+function load_state(mdata)
+	plates = mdata.plates or {}
+end
+
+function actor_on_first_update()
+	check_speed()
+end
+
+function server_entity_on_unregister(se_obj, typ)
+	plates[se_obj.id] = nil
+end
+
+-- plate type is 
+-- hit state is 0 for block, 1 for penetration
+local timeout = 500
+local last = nil
+function play_appropriate_sounds(material, hit_state)
+	local tg = time_global()
+	if not last then last = tg end
+	if tg < last + timeout then return end
+	last = tg
+	local sound = ""
+	local path = "attachments\\"
+	local injury = false
+	local ricochet = false
+	if hit_state == 0 then
+		sound = "hit_"..math.random(3)
+		ricochet = true
+	elseif hit_state == 1 then
+		sound = "pierce_"..math.random(3)
+		injury = true
+	end
+	ricochet = ricochet and material == "metal" and math.random(5) == 5
+	if ricochet then
+		-- printf("Playing ricochet")
+		utils_obj.play_sound(path.."ricochet_"..math.random(6), 3)
+	end
+	if injury then
+		-- printf("Playing injury")
+		utils_obj.play_sound(path.."flesh_"..math.random(6), 3)
+	end
+	-- printf("Playing "..material.."_"..sound)
+	utils_obj.play_sound(path..material.."_"..sound, 6)
+end
+
+
+function on_game_start()
+	custom_functor_autoinject.add_functor("add_plate", precond_remove, precond_remove, nil, remove_plate, true)
+	RegisterScriptCallback("ActorMenu_on_item_drag_drop",on_item_drag_dropped)
+	RegisterScriptCallback("save_state", save_state)
+	RegisterScriptCallback("load_state", load_state)
+	RegisterScriptCallback("actor_on_first_update", actor_on_first_update)
+
+    RegisterScriptCallback("ActorMenu_on_item_after_move", on_move)
+	RegisterScriptCallback("actor_item_to_slot",slot_move)
+	RegisterScriptCallback("actor_item_to_ruck",slot_move)
+	
+end
