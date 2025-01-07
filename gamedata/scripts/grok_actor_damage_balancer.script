@@ -628,7 +628,7 @@ function shit_booster(shit, bone_id, k_ap)
 		end
 	end
 	
-	player_protection = get_protection(shit,bone_id,k_ap)
+	player_protection, limiter, armor_protection, helmet_protection, armor_bone_value, helmet_bone_value = get_protection(shit,bone_id,k_ap)
 
 	if shit.type == hit.telepatic then
 		game_num = gameplay["type"] or game_num
